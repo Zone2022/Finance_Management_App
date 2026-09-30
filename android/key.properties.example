@@ -1,0 +1,6 @@
+# Copy to key.properties and fill locally. Paths are relative to android/.
+# Use forward slashes for absolute Windows paths.
+storeFile=C:/secure/finance-upload.jks
+storePassword=
+keyAlias=upload
+keyPassword=

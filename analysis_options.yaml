@@ -1,0 +1,13 @@
+include: package:flutter_lints/flutter.yaml
+
+linter:
+  rules:
+    prefer_const_constructors: true
+    prefer_const_declarations: true
+    avoid_print: false
+    non_constant_identifier_names: false
+
+analyzer:
+  errors:
+    non_const_argument_for_const_parameter: ignore
+    invalid_annotation_target: ignore
