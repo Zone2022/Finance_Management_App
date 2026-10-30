@@ -25,6 +25,7 @@ class Transaction {
     return {
       if (id != null) 'id': id,
       'amount': amount,
+      'amount_fen': (amount * 100).round(),
       'merchant_name': merchantName,
       'category': category,
       'source': source,
@@ -38,7 +39,9 @@ class Transaction {
   factory Transaction.fromMap(Map<String, dynamic> map) {
     return Transaction(
       id: map['id'] as int?,
-      amount: (map['amount'] as num).toDouble(),
+      amount: map['amount_fen'] == null
+          ? (map['amount'] as num).toDouble()
+          : (map['amount_fen'] as num).toInt() / 100,
       merchantName: map['merchant_name'] as String,
       category: map['category'] as String,
       source: map['source'] as String,

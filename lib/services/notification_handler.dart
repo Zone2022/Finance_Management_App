@@ -14,6 +14,7 @@ class NotificationHandler {
   bool _isListening = false;
   bool _draining = false;
   bool _requested = false;
+  final ValueNotifier<String?> importError = ValueNotifier(null);
   AppLifecycleListener? _lifecycle;
   static bool get isSupported =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
@@ -31,6 +32,8 @@ class NotificationHandler {
   Future<void> openSettings() =>
       _channel.invokeMethod<void>('openNotificationSettings');
 
+  Future<void> retryImport() => _drain();
+
   // Acknowledge only after the database transaction commits. One consumer.
   Future<void> _drain() async {
     _requested = true;
@@ -42,35 +45,46 @@ class NotificationHandler {
         final events =
             await _channel.invokeListMethod<dynamic>('getPendingPayments') ??
             [];
+        importError.value = null;
         for (final event in events) {
-          final args = Map<String, dynamic>.from(event as Map);
-          final amount = (args['amount'] as num).toDouble();
-          final source = args['source'] as String;
-          final eventId = args['eventId'] as String;
-          if (!amount.isFinite ||
-              amount <= 0 ||
-              !['wechat', 'alipay'].contains(source) ||
-              eventId.isEmpty) {
-            throw const FormatException('Invalid payment event');
-          }
-          final merchant = args['merchantName'] as String;
-          final category = await ClassificationService().classify(merchant);
-          await DatabaseHelper().insertTransaction(
-            Transaction(
-              amount: amount,
-              merchantName: merchant,
-              category: category,
-              source: source,
-              eventId: eventId,
-              timestamp: DateTime.fromMillisecondsSinceEpoch(
-                args['timestamp'] as int,
+          try {
+            final args = Map<String, dynamic>.from(event as Map);
+            final amount = (args['amount'] as num).toDouble();
+            final source = args['source'] as String;
+            final eventId = args['eventId'] as String;
+            if (!amount.isFinite ||
+                amount <= 0 ||
+                !['wechat', 'alipay'].contains(source) ||
+                eventId.isEmpty) {
+              throw const FormatException('Invalid payment event');
+            }
+            final merchant = args['merchantName'] as String;
+            final category = await ClassificationService().classify(merchant);
+            await DatabaseHelper().insertTransaction(
+              Transaction(
+                amount: amount,
+                merchantName: merchant,
+                category: category,
+                source: source,
+                eventId: eventId,
+                timestamp: DateTime.fromMillisecondsSinceEpoch(
+                  args['timestamp'] as int,
+                ),
               ),
-            ),
-          );
-          await _channel.invokeMethod<void>('ackPayment', eventId);
+            );
+            await _channel.invokeMethod<void>('ackPayment', eventId);
+          } on FormatException {
+            importError.value = '部分通知无法导入，请检查通知格式；其他通知会继续处理。';
+            continue;
+          } on TypeError {
+            importError.value = '部分通知数据无效，其他通知会继续处理。';
+            continue;
+          }
         }
+        if (events.isEmpty) importError.value = null;
       }
     } catch (_) {
+      importError.value = '通知导入失败，请检查存储空间后重试。';
       debugPrint('Payment import deferred; pending events retained on device.');
     } finally {
       _draining = false;

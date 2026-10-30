@@ -44,6 +44,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
               }
             },
           ),
+          ValueListenableBuilder<String?>(
+            valueListenable: NotificationHandler().importError,
+            builder: (context, error, _) => error == null
+                ? const SizedBox.shrink()
+                : Column(
+                    children: [
+                      Text(error),
+                      TextButton(
+                        onPressed: () => NotificationHandler().retryImport(),
+                        child: const Text('重试导入'),
+                      ),
+                    ],
+                  ),
+          ),
           const SizedBox(height: 24),
         ],
         const Text(

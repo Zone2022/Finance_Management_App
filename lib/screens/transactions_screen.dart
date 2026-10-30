@@ -5,6 +5,7 @@ import '../database/database_helper.dart';
 import 'data_refresh_mixin.dart';
 import '../models/transaction.dart';
 import '../models/category.dart';
+import 'transaction_editor.dart';
 
 class TransactionsScreen extends StatefulWidget {
   const TransactionsScreen({super.key});
@@ -59,6 +60,17 @@ class _TransactionsScreenState extends State<TransactionsScreen>
 
     return Column(
       children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton.icon(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const TransactionEditor()),
+            ),
+            icon: const Icon(Icons.add),
+            label: const Text('新增交易'),
+          ),
+        ),
         _buildFilterBar(),
         Expanded(
           child: RefreshIndicator(
@@ -104,14 +116,18 @@ class _TransactionsScreenState extends State<TransactionsScreen>
           _buildDropdown<String>(
             value: _filterSource == null
                 ? null
-                : (_filterSource == 'wechat' ? '微信' : '支付宝'),
+                : (_filterSource == 'wechat'
+                      ? '微信'
+                      : (_filterSource == 'alipay' ? '支付宝' : '手动')),
             hint: '全部来源',
-            items: const ['微信', '支付宝'],
+            items: const ['微信', '支付宝', '手动'],
             onChanged: (v) {
               setState(() {
                 _filterSource = v == null
                     ? null
-                    : (v == '微信' ? 'wechat' : 'alipay');
+                    : (v == '微信'
+                          ? 'wechat'
+                          : (v == '支付宝' ? 'alipay' : 'manual'));
                 _loading = true;
               });
               loadData();
@@ -161,6 +177,39 @@ class _TransactionsScreenState extends State<TransactionsScreen>
     );
 
     return ListTile(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => TransactionEditor(transaction: t)),
+      ),
+      onLongPress: () async {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('删除交易？'),
+            content: Text('确定删除「${t.merchantName}」的这笔交易吗？'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('取消'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('删除'),
+              ),
+            ],
+          ),
+        );
+        if (!mounted || confirmed != true || t.id == null) return;
+        try {
+          await context.read<DatabaseHelper>().deleteTransaction(t.id!);
+        } catch (_) {
+          if (mounted) {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('删除失败，请重试')));
+          }
+        }
+      },
       leading: CircleAvatar(
         backgroundColor: cat.color.withValues(alpha: 0.15),
         child: Icon(cat.icon, color: cat.color, size: 22),
@@ -170,7 +219,7 @@ class _TransactionsScreenState extends State<TransactionsScreen>
         style: const TextStyle(fontWeight: FontWeight.w500),
       ),
       subtitle: Text(
-        '${t.source == 'wechat' ? '微信' : '支付宝'}  ${_dateFmt.format(t.timestamp)}',
+        '${t.source == 'wechat' ? '微信' : (t.source == 'alipay' ? '支付宝' : '手动')}  ${_dateFmt.format(t.timestamp)}',
         style: const TextStyle(fontSize: 12, color: Colors.grey),
       ),
       trailing: Text(

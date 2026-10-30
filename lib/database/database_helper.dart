@@ -35,7 +35,7 @@ class DatabaseHelper {
     return await factory.openDatabase(
       _path ?? path,
       options: OpenDatabaseOptions(
-        version: 2,
+        version: 3,
         onCreate: _onCreate,
         onUpgrade: (db, oldVersion, newVersion) async {
           if (oldVersion < 2) {
@@ -44,6 +44,14 @@ class DatabaseHelper {
             );
             await db.execute(
               'CREATE UNIQUE INDEX idx_transactions_event ON transactions(event_id)',
+            );
+          }
+          if (oldVersion < 3) {
+            await db.execute(
+              'ALTER TABLE transactions ADD COLUMN amount_fen INTEGER',
+            );
+            await db.execute(
+              'UPDATE transactions SET amount_fen = CAST(ROUND(amount * 100) AS INTEGER)',
             );
           }
         },
@@ -62,6 +70,7 @@ class DatabaseHelper {
       CREATE TABLE transactions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         amount REAL NOT NULL,
+        amount_fen INTEGER NOT NULL,
         merchant_name TEXT NOT NULL,
         category TEXT NOT NULL,
         source TEXT NOT NULL,
@@ -168,8 +177,11 @@ class DatabaseHelper {
   // ─── Transaction CRUD ───
 
   Future<int> insertTransaction(Transaction t) async {
-    if (!t.amount.isFinite || t.amount <= 0) {
-      throw ArgumentError.value(t.amount, 'amount', '必须为有限正数');
+    if (!t.amount.isFinite ||
+        t.amount < 0.01 ||
+        t.amount > 9999999999.99 ||
+        ((t.amount * 100) - (t.amount * 100).round()).abs() > 0.00001) {
+      throw ArgumentError.value(t.amount, 'amount', '必须为有效金额，最多两位小数');
     }
     final db = await database;
     final id = await db.transaction((txn) async {
@@ -231,7 +243,11 @@ class DatabaseHelper {
   }
 
   Future<int> updateTransaction(Transaction t) async {
-    if (t.id == null || !t.amount.isFinite || t.amount <= 0) {
+    if (t.id == null ||
+        !t.amount.isFinite ||
+        t.amount < 0.01 ||
+        t.amount > 9999999999.99 ||
+        ((t.amount * 100) - (t.amount * 100).round()).abs() > 0.00001) {
       throw ArgumentError('更新需要有效 ID 和有限正金额');
     }
     final db = await database;
@@ -284,7 +300,7 @@ class DatabaseHelper {
     }
 
     final result = await db.rawQuery(
-      'SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE ${conditions.join(' AND ')}',
+      'SELECT COALESCE(SUM(amount_fen), 0) / 100.0 as total FROM transactions WHERE ${conditions.join(' AND ')}',
       args,
     );
     return (result.first['total'] as num).toDouble();
@@ -308,7 +324,7 @@ class DatabaseHelper {
     }
 
     final result = await db.rawQuery(
-      'SELECT category, SUM(amount) as total FROM transactions WHERE ${conditions.join(' AND ')} GROUP BY category',
+      'SELECT category, SUM(amount_fen) / 100.0 as total FROM transactions WHERE ${conditions.join(' AND ')} GROUP BY category',
       args,
     );
 
@@ -323,7 +339,7 @@ class DatabaseHelper {
     return await db.rawQuery(
       '''
       SELECT substr(timestamp, 1, 7) as month,
-             SUM(amount) as total
+             SUM(amount_fen) / 100.0 as total
       FROM transactions
       WHERE is_expense = 1 AND substr(timestamp, 1, 4) = ?
       GROUP BY month ORDER BY month
@@ -350,7 +366,7 @@ class DatabaseHelper {
     }
 
     final result = await db.rawQuery(
-      'SELECT COUNT(DISTINCT substr(timestamp, 1, 10)) as days, COALESCE(SUM(amount), 0) as total FROM transactions WHERE ${conditions.join(' AND ')}',
+      'SELECT COUNT(DISTINCT substr(timestamp, 1, 10)) as days, COALESCE(SUM(amount_fen), 0) / 100.0 as total FROM transactions WHERE ${conditions.join(' AND ')}',
       args,
     );
 

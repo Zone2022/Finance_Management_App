@@ -69,6 +69,19 @@ void main() {
     expect(await db.getTransactions(), isEmpty);
   });
 
+  test('cent totals remain exact through inserts and edits', () async {
+    final time = DateTime(2026, 8, 1);
+    for (var i = 0; i < 10; i++) {
+      await db.insertTransaction(payment(time, amount: 0.1));
+    }
+    expect(await db.getTotalExpense(), 1.0);
+    final first = (await db.getTransactions()).first;
+    await db.updateTransaction(first.copyWith(amount: 0.25));
+    expect(await db.getTotalExpense(), 1.15);
+    await db.deleteTransaction(first.id!);
+    expect(await db.getTotalExpense(), 0.9);
+  });
+
   test('specific merchant rule wins and SQL wildcards are literal', () async {
     await db.addMerchantRule('美团买药', '医疗');
     expect(await db.matchCategory('美团买药旗舰店'), '医疗');
@@ -92,7 +105,8 @@ void main() {
                 'CREATE TABLE transactions (id INTEGER PRIMARY KEY AUTOINCREMENT, amount REAL NOT NULL, merchant_name TEXT NOT NULL, category TEXT NOT NULL, source TEXT NOT NULL, timestamp TEXT NOT NULL, note TEXT, is_expense INTEGER NOT NULL DEFAULT 1)',
               );
               final map = payment(DateTime(2026, 8)).toMap()
-                ..remove('event_id');
+                ..remove('event_id')
+                ..remove('amount_fen');
               await database.insert('transactions', map);
             },
           ),

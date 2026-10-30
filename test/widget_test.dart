@@ -17,6 +17,27 @@ class FakeDatabase implements DatabaseHelper {
   bool fail = false;
   List<Transaction> rows = [];
   @override
+  Future<int> insertTransaction(Transaction t) async {
+    rows = [...rows, t.copyWith(id: 1)];
+    updates.add(null);
+    return 1;
+  }
+
+  @override
+  Future<int> updateTransaction(Transaction t) async {
+    rows = [t];
+    updates.add(null);
+    return 1;
+  }
+
+  @override
+  Future<int> deleteTransaction(int id) async {
+    rows = [];
+    updates.add(null);
+    return 1;
+  }
+
+  @override
   Stream<void> get changes => updates.stream;
   @override
   Future<List<Transaction>> getTransactions({
@@ -131,6 +152,41 @@ void main() {
     expect(find.text('数据加载失败，请重试'), findsOneWidget);
     db.fail = false;
     await tester.tap(find.text('重试'));
+    await tester.pumpAndSettle();
+    expect(find.text('暂无交易记录'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('create, edit and delete a manual transaction', (tester) async {
+    await tester.pumpWidget(
+      app(const MaterialApp(home: Scaffold(body: TransactionsScreen()))),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('新增交易'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, '金额（元）'),
+      '10.25',
+    );
+    await tester.enterText(find.widgetWithText(TextFormField, '商户或用途'), '测试商户');
+    await tester.ensureVisible(find.text('保存'));
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+    expect(find.text('测试商户'), findsOneWidget);
+    expect(db.rows.single.amount, 10.25);
+    await tester.tap(find.text('测试商户'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, '金额（元）'),
+      '12.50',
+    );
+    await tester.ensureVisible(find.text('保存'));
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+    expect(db.rows.single.amount, 12.5);
+    await tester.longPress(find.text('测试商户'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('删除').last);
     await tester.pumpAndSettle();
     expect(find.text('暂无交易记录'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
