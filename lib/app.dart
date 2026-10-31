@@ -10,7 +10,7 @@ class FinanceApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '个人财务',
+      title: 'Miko Finance',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorSchemeSeed: const Color(0xFF378ADD),
@@ -31,9 +31,12 @@ class MainShell extends StatefulWidget {
 }
 
 class _MainShellState extends State<MainShell> {
+  static const _transactionsTab = 1;
   int _currentIndex = 0;
 
   final _titles = const ['财务概览', '交易流水', '统计报表', '设置'];
+
+  void _selectTab(int index) => setState(() => _currentIndex = index);
 
   @override
   Widget build(BuildContext context) {
@@ -42,9 +45,7 @@ class _MainShellState extends State<MainShell> {
       body: IndexedStack(
         index: _currentIndex,
         children: [
-          HomeScreen(
-            onViewTransactions: () => setState(() => _currentIndex = 1),
-          ),
+          HomeScreen(onViewTransactions: () => _selectTab(_transactionsTab)),
           const TransactionsScreen(),
           const ReportsScreen(),
           const SettingsScreen(),
@@ -52,7 +53,7 @@ class _MainShellState extends State<MainShell> {
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
-        onDestinationSelected: (i) => setState(() => _currentIndex = i),
+        onDestinationSelected: _selectTab,
         destinations: const [
           NavigationDestination(icon: Icon(Icons.dashboard), label: '概览'),
           NavigationDestination(icon: Icon(Icons.receipt_long), label: '流水'),

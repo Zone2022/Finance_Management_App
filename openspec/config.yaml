@@ -1,0 +1,4 @@
+schema: spec-driven
+context: |
+  Flutter local finance application. Preserve existing transaction, notification,
+  classification, database and reporting behavior during readability refactors.

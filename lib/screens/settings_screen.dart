@@ -109,7 +109,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('个人财务管理', style: TextStyle(fontWeight: FontWeight.w600)),
+                Text(
+                  'Miko Finance',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
                 SizedBox(height: 4),
                 Text(
                   'v1.0.0',

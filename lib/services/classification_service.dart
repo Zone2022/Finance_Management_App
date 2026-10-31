@@ -6,15 +6,16 @@ class ClassificationService {
   final AiService _ai = AiService();
 
   Future<String> classify(String merchantName) async {
-    merchantName = merchantName.trim();
-    if (merchantName.isEmpty || merchantName == '未知商户') return '其他';
-    final localMatch = await _db.matchCategory(merchantName);
+    final normalizedName = merchantName.trim();
+    if (normalizedName.isEmpty || normalizedName == '未知商户') return '其他';
+
+    final localMatch = await _db.matchCategory(normalizedName);
     if (localMatch != null) return localMatch;
 
     try {
-      final aiResult = await _ai.classify(merchantName);
+      final aiResult = await _ai.classify(normalizedName);
       if (aiResult != null && aiResult != '其他') {
-        await _db.addMerchantRule(merchantName, aiResult);
+        await _db.addMerchantRule(normalizedName, aiResult);
         return aiResult;
       }
     } catch (_) {
