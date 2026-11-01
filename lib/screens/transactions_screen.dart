@@ -116,16 +116,20 @@ class _TransactionsScreenState extends State<TransactionsScreen>
           _buildDropdown<String>(
             value: _filterSource == null
                 ? null
-                : (_filterSource == 'wechat'
+                : (_filterSource == 'bank'
+                      ? '建设银行'
+                      : _filterSource == 'wechat'
                       ? '微信'
                       : (_filterSource == 'alipay' ? '支付宝' : '手动')),
             hint: '全部来源',
-            items: const ['微信', '支付宝', '手动'],
+            items: const ['微信', '支付宝', '建设银行', '手动'],
             onChanged: (v) {
               setState(() {
                 _filterSource = v == null
                     ? null
-                    : (v == '微信'
+                    : (v == '建设银行'
+                          ? 'bank'
+                          : v == '微信'
                           ? 'wechat'
                           : (v == '支付宝' ? 'alipay' : 'manual'));
                 _loading = true;
@@ -219,7 +223,7 @@ class _TransactionsScreenState extends State<TransactionsScreen>
         style: const TextStyle(fontWeight: FontWeight.w500),
       ),
       subtitle: Text(
-        '${t.source == 'wechat' ? '微信' : (t.source == 'alipay' ? '支付宝' : '手动')}  ${_dateFmt.format(t.timestamp)}',
+        '${t.source == 'wechat' ? '微信' : (t.source == 'alipay' ? '支付宝' : (t.source == 'bank' ? '建设银行' : '手动'))}  ${_dateFmt.format(t.timestamp)}',
         style: const TextStyle(fontSize: 12, color: Colors.grey),
       ),
       trailing: Text(

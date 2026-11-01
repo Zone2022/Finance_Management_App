@@ -90,6 +90,92 @@ void main() {
   });
 
   test(
+    'rules can be queried, edited and deleted without changing old transactions',
+    () async {
+      await db.createMerchantRule('测试商店', '购物');
+      final rule = (await db.getMerchantRules()).firstWhere(
+        (r) => r.keyword == '测试商店',
+      );
+      await db.insertTransaction(
+        payment(DateTime(2026, 1)).copyWith(category: '购物'),
+      );
+      await db.updateMerchantRule(rule.id, '测试商店', '餐饮');
+      expect(await db.matchCategory('测试商店旗舰店'), '餐饮');
+      expect((await db.getTransactions()).single.category, '购物');
+      await db.deleteMerchantRule(rule.id);
+      expect(await db.matchCategory('测试商店旗舰店'), isNull);
+      await expectLater(
+        db.createMerchantRule('   ', '餐饮'),
+        throwsArgumentError,
+      );
+    },
+  );
+
+  test(
+    'v2 upgrade keeps transactions, category and merchant rules after restart',
+    () async {
+      final temp = await Directory.systemTemp.createTemp('finance_v2_upgrade_');
+      final path = '${temp.path}/finance.db';
+      DatabaseHelper? migrated;
+      try {
+        final old = await databaseFactoryFfi.openDatabase(
+          path,
+          options: OpenDatabaseOptions(
+            version: 2,
+            onCreate: (database, _) async {
+              await database.execute(
+                'CREATE TABLE transactions (id INTEGER PRIMARY KEY AUTOINCREMENT, amount REAL NOT NULL, merchant_name TEXT NOT NULL, category TEXT NOT NULL, source TEXT NOT NULL, timestamp TEXT NOT NULL, note TEXT, event_id TEXT, is_expense INTEGER NOT NULL DEFAULT 1)',
+              );
+              await database.execute(
+                'CREATE UNIQUE INDEX idx_transactions_event ON transactions(event_id)',
+              );
+              await database.execute(
+                'CREATE TABLE categories (id INTEGER PRIMARY KEY, name TEXT NOT NULL, icon TEXT NOT NULL, color_value INTEGER NOT NULL)',
+              );
+              await database.execute(
+                'CREATE TABLE merchant_rules (id INTEGER PRIMARY KEY, keyword TEXT NOT NULL, category TEXT NOT NULL)',
+              );
+              final map = payment(
+                DateTime(2026, 8),
+                amount: 12.34,
+                eventId: 'old-payment',
+              ).toMap()..remove('amount_fen');
+              await database.insert('transactions', map);
+              await database.insert('categories', {
+                'id': 1,
+                'name': '餐饮',
+                'icon': '1',
+                'color_value': 0,
+              });
+              await database.insert('merchant_rules', {
+                'id': 7,
+                'keyword': '旧商户',
+                'category': '交通',
+              });
+            },
+          ),
+        );
+        await old.close();
+        migrated = DatabaseHelper.forTesting(databaseFactoryFfi, path);
+        expect((await migrated.getTransactions()).single.amount, 12.34);
+        expect((await migrated.getCategories()).single.name, '餐饮');
+        expect(await migrated.matchCategory('旧商户付款'), '交通');
+        expect(await migrated.getTotalExpense(), 12.34);
+        await migrated.close();
+        migrated = DatabaseHelper.forTesting(databaseFactoryFfi, path);
+        expect(
+          (await migrated.getTransactions()).single.eventId,
+          'old-payment',
+        );
+        expect((await migrated.getMerchantRules()).single.keyword, '旧商户');
+      } finally {
+        await migrated?.close();
+        await temp.delete(recursive: true);
+      }
+    },
+  );
+
+  test(
     'v1 migration preserves old rows and enables event deduplication',
     () async {
       final temp = await Directory.systemTemp.createTemp('finance_migration_');

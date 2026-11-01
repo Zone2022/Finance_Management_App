@@ -34,6 +34,14 @@ class NotificationHandler {
 
   Future<void> retryImport() => _drain();
 
+  Future<List<dynamic>> getLogs() async =>
+      await _channel.invokeListMethod<dynamic>('getLogs') ?? [];
+  Future<Map<dynamic, dynamic>> listenerStatus() async =>
+      await _channel.invokeMapMethod<dynamic, dynamic>('listenerStatus') ?? {};
+  Future<void> clearLogs() => _channel.invokeMethod<void>('clearLogs');
+  Future<void> addLog(String message) =>
+      _channel.invokeMethod<void>('addLog', message);
+
   // Acknowledge only after the database transaction commits. One consumer.
   Future<void> _drain() async {
     _requested = true;
@@ -54,7 +62,7 @@ class NotificationHandler {
             final eventId = args['eventId'] as String;
             if (!amount.isFinite ||
                 amount <= 0 ||
-                !['wechat', 'alipay'].contains(source) ||
+                !['wechat', 'alipay', 'bank'].contains(source) ||
                 eventId.isEmpty) {
               throw const FormatException('Invalid payment event');
             }
@@ -73,6 +81,7 @@ class NotificationHandler {
               ),
             );
             await _channel.invokeMethod<void>('ackPayment', eventId);
+            await addLog('支出已导入账本');
           } on FormatException {
             importError.value = '部分通知无法导入，请检查通知格式；其他通知会继续处理。';
             continue;
@@ -85,6 +94,9 @@ class NotificationHandler {
       }
     } catch (_) {
       importError.value = '通知导入失败，请检查存储空间后重试。';
+      try {
+        await addLog('账本导入失败，待处理记录已保留');
+      } catch (_) {}
       debugPrint('Payment import deferred; pending events retained on device.');
     } finally {
       _draining = false;

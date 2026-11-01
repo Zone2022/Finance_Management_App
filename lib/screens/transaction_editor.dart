@@ -32,7 +32,7 @@ class _TransactionEditorState extends State<TransactionEditor> {
     category = Category.defaults.any((c) => c.name == t?.category)
         ? t!.category
         : '其他';
-    source = ['wechat', 'alipay', 'manual'].contains(t?.source)
+    source = ['wechat', 'alipay', 'bank', 'manual'].contains(t?.source)
         ? t!.source
         : 'manual';
     expense = t?.isExpense ?? true;
@@ -125,6 +125,7 @@ class _TransactionEditorState extends State<TransactionEditor> {
               DropdownMenuItem(value: 'manual', child: Text('手动')),
               DropdownMenuItem(value: 'wechat', child: Text('微信')),
               DropdownMenuItem(value: 'alipay', child: Text('支付宝')),
+              DropdownMenuItem(value: 'bank', child: Text('建设银行')),
             ],
             onChanged: (v) => setState(() => source = v!),
           ),

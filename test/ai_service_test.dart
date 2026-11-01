@@ -3,8 +3,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:flutter_finance/services/ai_service.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   test('settings and classifier share the same service instance', () {
     expect(identical(AiService(), AiService()), isTrue);
   });
@@ -41,5 +43,45 @@ void main() {
     addTearDown(client.close);
     final ai = AiService.forTesting(client)..setApiKey('test-key');
     expect(await ai.classify('测试商户'), isNull);
+  });
+
+  test('Claude uses messages endpoint and parses category response', () async {
+    final client = MockClient((request) async {
+      expect(request.url.host, 'api.anthropic.com');
+      expect(request.url.path, '/v1/messages');
+      expect(request.headers['anthropic-version'], '2023-06-01');
+      return http.Response.bytes(
+        utf8.encode(
+          jsonEncode({
+            'content': [
+              {'type': 'text', 'text': '交通'},
+            ],
+          }),
+        ),
+        200,
+      );
+    });
+    addTearDown(client.close);
+    final ai = AiService.forTesting(client)..setApiKey('test-key');
+    await ai.selectProvider('claude');
+    expect(await ai.classify('测试商户'), '交通');
+  });
+
+  test('saved provider and keys restore in a new service instance', () async {
+    FlutterSecureStorage.setMockInitialValues({});
+    const storage = FlutterSecureStorage();
+    final client = MockClient((_) async => http.Response('', 500));
+    addTearDown(client.close);
+    final first = AiService.forTesting(client, storage: storage);
+    await first.saveKey('deepseek', 'deepseek-test');
+    await first.saveKey('claude', 'claude-test');
+    await first.selectProvider('claude');
+    final restored = AiService.forTesting(client, storage: storage);
+    await restored.initialize();
+    expect(restored.selectedProvider, 'claude');
+    expect(restored.hasKey('deepseek'), isTrue);
+    expect(restored.hasKey('claude'), isTrue);
+    await restored.deleteKey('claude');
+    expect(restored.hasKey('claude'), isFalse);
   });
 }

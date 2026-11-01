@@ -3,6 +3,7 @@ import 'package:sqflite/sqflite.dart' hide Transaction;
 import 'package:path/path.dart';
 import '../models/transaction.dart';
 import '../models/category.dart';
+import '../models/merchant_rule.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._();
@@ -382,6 +383,49 @@ class DatabaseHelper {
   }
 
   // ─── Merchant Rules ───
+
+  /// Return all rules in the same precedence order used for classification.
+  Future<List<MerchantRule>> getMerchantRules() async {
+    final db = await database;
+    final rows = await db.query(
+      'merchant_rules',
+      orderBy: 'length(keyword) DESC, id DESC',
+    );
+    return rows.map(MerchantRule.fromMap).toList();
+  }
+
+  Future<int> updateMerchantRule(
+    int id,
+    String keyword,
+    String category,
+  ) async {
+    final normalized = keyword.trim();
+    if (normalized.isEmpty ||
+        !Category.defaults.any((item) => item.name == category)) {
+      throw ArgumentError('请输入关键词并选择有效分类');
+    }
+    final db = await database;
+    return db.update(
+      'merchant_rules',
+      {'keyword': normalized, 'category': category},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<int> deleteMerchantRule(int id) async {
+    final db = await database;
+    return db.delete('merchant_rules', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> createMerchantRule(String keyword, String category) async {
+    final normalized = keyword.trim();
+    if (normalized.isEmpty ||
+        !Category.defaults.any((item) => item.name == category)) {
+      throw ArgumentError('请输入关键词并选择有效分类');
+    }
+    await addMerchantRule(normalized, category);
+  }
 
   Future<String?> matchCategory(String merchantName) async {
     final db = await database;

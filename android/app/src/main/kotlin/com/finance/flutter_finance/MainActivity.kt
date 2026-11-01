@@ -1,6 +1,7 @@
 package com.finance.flutter_finance
 
 import android.content.Intent
+import android.content.ComponentName
 import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -15,6 +16,14 @@ class MainActivity : FlutterActivity() {
             try {
                 when (call.method) {
                     "getPendingPayments" -> result.success(PaymentQueue.pending(this))
+                    "getLogs" -> result.success(DiagnosticLog.list(this))
+                    "listenerStatus" -> {
+                        val enabled = Settings.Secure.getString(contentResolver, "enabled_notification_listeners") ?: ""
+                        val component = ComponentName(this, NotificationListener::class.java)
+                        result.success(mapOf("authorized" to enabled.split(":").any { ComponentName.unflattenFromString(it) == component }, "connected" to NotificationListener.connected))
+                    }
+                    "clearLogs" -> { DiagnosticLog.clear(this); result.success(null) }
+                    "addLog" -> { DiagnosticLog.add(this, call.arguments as String); result.success(null) }
                     "ackPayment" -> {
                         PaymentQueue.acknowledge(this, call.arguments as String)
                         result.success(null)
